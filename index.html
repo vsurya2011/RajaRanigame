@@ -1,0 +1,154 @@
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getDatabase, ref, set, onValue, update, get, child } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+  // Your specific config
+  const firebaseConfig = {
+    apiKey: "AIzaSyCg2LXzyUOasdVK9QtJ-jDvt0a_cYo62Us",
+    authDomain: "rajaranigame-e99fc.firebaseapp.com",
+    databaseURL: "https://rajaranigame-e99fc-default-rtdb.firebaseio.com",
+    projectId: "rajaranigame-e99fc",
+    storageBucket: "rajaranigame-e99fc.firebasestorage.app",
+    messagingSenderId: "130582573101",
+    appId: "1:130582573101:web:69b0f332d57e44ed5708a4",
+    measurementId: "G-82YW19TQW9"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  let myName = "";
+  let roomID = "";
+  let amIHost = false;
+
+  // Make functions accessible to HTML buttons
+  window.enterLobby = () => {
+    myName = document.getElementById('p-name').value.trim();
+    if(!myName) return alert("Enter name da!");
+    document.getElementById('auth-screen').classList.add('hidden');
+    document.getElementById('lobby-screen').classList.remove('hidden');
+  };
+
+  window.createNewRoom = () => {
+    roomID = Math.random().toString(36).substring(2, 7).toUpperCase();
+    amIHost = true;
+    connectToRoom();
+  };
+
+  window.joinExistingRoom = () => {
+    roomID = document.getElementById('r-code').value.toUpperCase();
+    if(!roomID) return;
+    connectToRoom();
+  };
+
+  function connectToRoom() {
+    const roomRef = ref(db, 'raja_rani/' + roomID);
+    
+    // Join logic
+    set(ref(db, `raja_rani/${roomID}/players/${myName}`), {
+      name: myName,
+      score: 0,
+      role: 'Hidden'
+    });
+
+    onValue(roomRef, (snapshot) => {
+      const data = snapshot.val();
+      if(data) renderGame(data);
+    });
+
+    document.getElementById('lobby-screen').classList.add('hidden');
+    document.getElementById('game-screen').classList.remove('hidden');
+    document.getElementById('display-code').innerText = roomID;
+  }
+
+  function renderGame(data) {
+    const list = document.getElementById('player-list');
+    list.innerHTML = '';
+    const me = data.players[myName];
+    document.getElementById('display-score').innerText = me.score || 0;
+    
+    if(me.role !== 'Hidden') {
+      document.getElementById('identity-box').classList.remove('hidden');
+      document.getElementById('my-role').innerText = me.role;
+    }
+
+    if(amIHost && data.state !== 'playing') {
+      document.getElementById('host-roll-btn').classList.remove('hidden');
+    } else {
+      document.getElementById('host-roll-btn').classList.add('hidden');
+    }
+
+    Object.values(data.players).forEach(p => {
+      const card = document.createElement('div');
+      card.className = `glass-card p-6 rounded-3xl flex flex-col items-center text-center ${p.name === myName ? 'border-yellow-500/50' : ''}`;
+      
+      let btn = "";
+      if(me.role === 'Police' && p.name !== myName && data.state === 'playing') {
+        btn = `<button onclick="handleGuess('${p.name}')" class="mt-3 text-[10px] bg-red-600 px-4 py-2 rounded-xl font-bold uppercase">Guess Thief</button>`;
+      }
+
+      card.innerHTML = `
+        <div class="w-10 h-10 bg-slate-800 rounded-full mb-2 flex items-center justify-center font-bold text-yellow-500">${p.name[0]}</div>
+        <div class="font-bold text-sm">${p.name}</div>
+        <div class="text-[10px] text-slate-500">PTS: ${p.score || 0}</div>
+        ${btn}
+      `;
+      list.appendChild(card);
+    });
+  }
+
+  window.triggerRoll = () => {
+    const roles = ['Raja', 'Rani', 'Mantri', 'Police', 'Thief'].sort(() => Math.random() - 0.5);
+    const playersRef = ref(db, `raja_rani/${roomID}/players`);
+    
+    get(playersRef).then((snapshot) => {
+      let i = 0;
+      snapshot.forEach((childSnap) => {
+        update(ref(db, `raja_rani/${roomID}/players/${childSnap.key}`), {
+          role: roles[i] || 'Villager'
+        });
+        i++;
+      });
+      update(ref(db, `raja_rani/${roomID}`), { state: 'playing' });
+    });
+  };
+
+  window.handleGuess = (targetName) => {
+    const roomRef = ref(db, `raja_rani/${roomID}`);
+    get(roomRef).then((snapshot) => {
+      const data = snapshot.val();
+      const targetRole = data.players[targetName].role;
+      const thiefName = Object.keys(data.players).find(k => data.players[k].role === 'Thief');
+
+      if(targetRole === 'Thief') {
+        alert("Correct! Police gets points!");
+        updatePoints(data, myName, 200);
+      } else {
+        alert("Wrong! Thief gets points!");
+        updatePoints(data, thiefName, 200);
+      }
+      
+      // Reset Round
+      update(ref(db, `raja_rani/${roomID}`), { state: 'idle' });
+      Object.keys(data.players).forEach(k => {
+        update(ref(db, `raja_rani/${roomID}/players/${k}`), { role: 'Hidden' });
+      });
+    });
+  };
+
+  function updatePoints(gameData, winnerName, bonus) {
+    Object.keys(gameData.players).forEach(name => {
+      let pts = 0;
+      const r = gameData.players[name].role;
+      if(r === 'Raja') pts = 1000;
+      if(r === 'Rani') pts = 800;
+      if(r === 'Mantri') pts = 500;
+      
+      const current = gameData.players[name].score || 0;
+      const finalAdd = (name === winnerName) ? (pts + bonus) : pts;
+      
+      set(ref(db, `raja_rani/${roomID}/players/${name}/score`), current + finalAdd);
+    });
+  }
+</script>
