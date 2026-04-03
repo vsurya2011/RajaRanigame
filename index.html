@@ -6,6 +6,7 @@
     <title>Raja Rani Pro | Chat & Voice</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.18.0.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
         body { font-family: 'Outfit', sans-serif; background: #050a18; color: #e2e8f0; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
@@ -109,7 +110,14 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        let myName, roomID, amIHost = false, isVoiceOn = false, localStream;
+        let myName, roomID, amIHost = false, isVoiceOn = false;
+
+        // Agora RTC Config
+        const AGORA_APP_ID = "031e2ac6cafc49c396567b5fa9dd3a47";
+        let rtc = {
+            localAudioTrack: null,
+            client: AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }),
+        };
 
         window.enterLobby = () => {
             myName = document.getElementById('p-name').value.trim();
@@ -197,13 +205,13 @@
             input.value = "";
         };
 
-        // Keyboard "Enter" to send
         document.getElementById('chat-input').addEventListener('keypress', (e) => {
             if(e.key === 'Enter') sendChat();
         });
 
         window.toggleChat = () => document.getElementById('chat-drawer').classList.toggle('open');
 
+        // UPDATED: Full Agora Voice Integration
         window.toggleVoice = async () => {
             isVoiceOn = !isVoiceOn;
             const btn = document.getElementById('voice-btn');
@@ -211,17 +219,37 @@
             
             if(isVoiceOn) {
                 try {
-                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    // 1. Join Audio Channel
+                    await rtc.client.join(AGORA_APP_ID, roomID, null, null);
+                    
+                    // 2. Create and publish local mic
+                    rtc.localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+                    await rtc.client.publish([rtc.localAudioTrack]);
+
+                    // 3. Listen for others
+                    rtc.client.on("user-published", async (user, mediaType) => {
+                        await rtc.client.subscribe(user, mediaType);
+                        if (mediaType === "audio") {
+                            user.audioTrack.play();
+                        }
+                    });
+
                     btn.classList.add('bg-red-600');
                     status.innerText = "Voice: ON";
                     status.classList.replace('text-red-500', 'text-green-500');
                     update(ref(db, `raja_rani/${roomID}/players/${myName}`), { isTalking: true });
                 } catch(e) {
-                    alert("Please allow Microphone access!");
+                    console.error(e);
+                    alert("Allow Microphone access da!");
                     isVoiceOn = false;
                 }
             } else {
-                if(localStream) localStream.getTracks().forEach(t => t.stop());
+                if(rtc.localAudioTrack) {
+                    rtc.localAudioTrack.stop();
+                    rtc.localAudioTrack.close();
+                }
+                await rtc.client.leave();
+                
                 btn.classList.remove('bg-red-600');
                 status.innerText = "Voice: OFF";
                 status.classList.replace('text-green-500', 'text-red-500');
