@@ -3,77 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raja Rani Multiplayer | Pro Edition</title>
+    <title>Raja Rani Pro | Chat & Voice</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
-        body { font-family: 'Outfit', sans-serif; background: #050a18; color: #e2e8f0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Outfit', sans-serif; background: #050a18; color: #e2e8f0; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
         .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .role-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        @keyframes bounce-subtle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-        .animate-bounce-short { animation: bounce-subtle 2s infinite; }
+        .chat-drawer { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); transform: translateY(100%); }
+        .chat-drawer.open { transform: translateY(0); }
+        .voice-active { border: 2px solid #ef4444; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
     </style>
 </head>
 <body class="min-h-screen p-4 flex flex-col items-center">
 
-    <div id="auth-screen" class="w-full max-w-sm mt-12 md:mt-20 space-y-6">
+    <div id="auth-screen" class="w-full max-w-sm mt-12 space-y-6">
         <div class="text-center">
             <h1 class="text-5xl font-800 text-yellow-500 mb-2 tracking-tighter uppercase">Raja Rani</h1>
-            <p class="text-slate-400">Ready to play, da?</p>
+            <p class="text-slate-400 text-sm font-bold uppercase tracking-widest">Multiplayer Edition</p>
         </div>
-        <div class="glass p-6 md:p-8 rounded-3xl space-y-4 shadow-2xl">
+        <div class="glass p-6 rounded-3xl space-y-4 shadow-2xl">
             <input type="text" id="p-name" placeholder="Enter Nickname" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-yellow-500 text-white">
-            <button onclick="enterLobby()" class="w-full py-4 bg-yellow-500 text-slate-900 font-800 rounded-2xl hover:bg-yellow-400 active:scale-95 transition-all">START GAME</button>
+            <button onclick="enterLobby()" class="w-full py-4 bg-yellow-500 text-slate-900 font-800 rounded-2xl active:scale-95 transition-all">START GAME</button>
         </div>
     </div>
 
     <div id="lobby-screen" class="hidden w-full max-w-sm mt-10 space-y-6">
-        <div class="glass p-6 md:p-8 rounded-3xl space-y-6 shadow-2xl">
-            <button onclick="createNewRoom()" class="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg active:scale-95 transition-all">Create New Room</button>
-            <div class="relative flex flex-col gap-3">
-                <p class="text-center text-[10px] text-slate-500 uppercase font-bold tracking-widest">OR JOIN FRIENDS</p>
-                <div class="flex flex-col gap-3">
-                    <input type="text" id="r-code" placeholder="ROOM CODE" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-2xl uppercase outline-none focus:border-indigo-500 text-center tracking-widest">
-                    <button onclick="joinExistingRoom()" class="w-full py-4 bg-slate-700 font-bold rounded-2xl active:scale-95">JOIN ROOM</button>
-                </div>
+        <div class="glass p-6 rounded-3xl space-y-6 shadow-2xl">
+            <button onclick="createNewRoom()" class="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl active:scale-95 transition-all text-sm uppercase tracking-widest">Create Room</button>
+            <div class="flex flex-col gap-3">
+                <input type="text" id="r-code" placeholder="ENTER CODE" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-2xl uppercase outline-none text-center tracking-widest">
+                <button onclick="joinExistingRoom()" class="w-full py-4 bg-slate-700 font-bold rounded-2xl active:scale-95">JOIN</button>
             </div>
         </div>
     </div>
 
-    <div id="game-screen" class="hidden w-full max-w-2xl space-y-6 pb-32">
+    <div id="game-screen" class="hidden w-full max-w-2xl space-y-4 pb-40">
         <div class="flex justify-between items-center glass p-4 rounded-2xl shadow-lg">
             <div class="flex flex-col">
-                <span class="text-[10px] text-slate-400 uppercase font-bold">Room</span>
-                <span id="display-code" class="font-800 text-yellow-500 text-lg tracking-widest">----</span>
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Room: <b id="display-code" class="text-yellow-500">----</b></span>
+                <span id="voice-status" class="text-[9px] text-red-500 font-bold uppercase tracking-tighter">Voice: OFF</span>
             </div>
-            <div class="flex flex-col text-right">
-                <span class="text-[10px] text-slate-400 uppercase font-bold">Your Score</span>
-                <span id="display-score" class="font-800 text-green-400 text-lg">0</span>
+            <div class="flex gap-2">
+                <button onclick="toggleVoice()" id="voice-btn" class="p-3 bg-slate-700 rounded-xl text-lg hover:bg-slate-600 transition-colors">🎙️</button>
+                <button onclick="toggleChat()" class="p-3 bg-slate-700 rounded-xl text-lg hover:bg-slate-600 transition-colors">💬</button>
+            </div>
+            <div class="text-right">
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Score</span>
+                <div id="display-score" class="font-800 text-green-400 text-xl leading-none">0</div>
             </div>
         </div>
 
-        <div id="identity-box" class="hidden glass p-6 rounded-3xl text-center border-t-4 border-yellow-500 animate-bounce-short shadow-2xl">
-            <p class="text-[10px] uppercase text-slate-400 font-bold tracking-widest mb-1">Your Secret Role</p>
-            <h2 id="my-role" class="text-4xl font-800 text-yellow-500 tracking-tighter">---</h2>
+        <div id="identity-box" class="hidden glass p-4 rounded-2xl text-center border-t-2 border-yellow-500 shadow-xl">
+            <p class="text-[9px] uppercase text-slate-400 font-bold mb-1">Your Secret Role</p>
+            <h2 id="my-role" class="text-3xl font-800 text-yellow-500 uppercase">---</h2>
         </div>
 
-        <div id="player-list" class="grid grid-cols-2 gap-4">
-            </div>
+        <div id="player-list" class="grid grid-cols-2 gap-3"></div>
 
-        <div class="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#050a18] via-[#050a18] to-transparent flex flex-col items-center gap-3">
-            <button id="host-roll-btn" onclick="triggerRoll()" class="hidden w-full max-w-sm py-5 bg-yellow-500 text-slate-900 font-800 rounded-2xl shadow-2xl active:scale-95 transition-all">
+        <div class="fixed bottom-0 left-0 right-0 p-6 flex flex-col items-center gap-2 pointer-events-none">
+            <button id="host-roll-btn" onclick="triggerRoll()" class="hidden pointer-events-auto w-full max-w-sm py-5 bg-yellow-500 text-slate-900 font-800 rounded-2xl shadow-2xl active:scale-95 transition-all">
                 ROLL ROLES 🎲
             </button>
-            <div id="status-msg" class="bg-slate-800/90 backdrop-blur px-6 py-2 rounded-full text-[10px] text-slate-300 border border-white/10 shadow-lg uppercase font-bold tracking-tight">
+            <div id="status-msg" class="bg-slate-800/95 backdrop-blur px-4 py-2 rounded-full text-[10px] text-slate-300 border border-white/10 uppercase font-bold tracking-tight">
                 Waiting for participants...
             </div>
         </div>
     </div>
 
+    <div id="chat-drawer" class="chat-drawer fixed bottom-0 left-0 right-0 h-[65vh] glass rounded-t-[40px] z-50 p-6 flex flex-col shadow-2xl">
+        <div class="flex justify-between items-center mb-4">
+            <div class="w-12 h-1.5 bg-slate-600 rounded-full cursor-pointer" onclick="toggleChat()"></div>
+            <h3 class="font-800 text-slate-400 text-xs uppercase tracking-widest ml-4">Room Chat</h3>
+            <button onclick="toggleChat()" class="text-slate-400 hover:text-white p-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        
+        <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 mb-4 p-2 flex flex-col">
+            </div>
+
+        <div class="flex gap-2 p-2 bg-slate-900/50 rounded-2xl">
+            <input type="text" id="chat-input" placeholder="Type message..." class="flex-1 bg-transparent p-4 outline-none text-white text-sm">
+            <button onclick="sendChat()" class="bg-yellow-500 text-black px-6 py-3 rounded-xl font-800 active:scale-95 transition-all">SEND</button>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, set, onValue, update, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getDatabase, ref, set, onValue, update, get, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCg2LXzyUOasdVK9QtJ-jDvt0a_cYo62Us",
@@ -88,14 +109,11 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-
-        let myName = "";
-        let roomID = "";
-        let amIHost = false;
+        let myName, roomID, amIHost = false, isVoiceOn = false, localStream;
 
         window.enterLobby = () => {
             myName = document.getElementById('p-name').value.trim();
-            if(!myName) return alert("Enter your name!");
+            if(!myName) return;
             document.getElementById('auth-screen').classList.add('hidden');
             document.getElementById('lobby-screen').classList.remove('hidden');
         };
@@ -112,11 +130,24 @@
         };
 
         function connectToRoom() {
-            set(ref(db, `raja_rani/${roomID}/players/${myName}`), { name: myName, score: 0, role: 'Hidden' });
+            set(ref(db, `raja_rani/${roomID}/players/${myName}`), { name: myName, score: 0, role: 'Hidden', isTalking: false });
+            
             onValue(ref(db, 'raja_rani/' + roomID), (snap) => {
                 const data = snap.val();
                 if(data) renderGame(data);
             });
+
+            onChildAdded(ref(db, `raja_rani/${roomID}/chats`), (snap) => {
+                const msg = snap.val();
+                const div = document.createElement('div');
+                const isMe = msg.user === myName;
+                div.className = `p-3 rounded-2xl max-w-[75%] shadow-md ${isMe ? 'bg-indigo-600 self-end rounded-tr-none' : 'bg-slate-800 self-start rounded-tl-none'}`;
+                div.innerHTML = `<p class="text-[9px] opacity-60 font-bold uppercase mb-1">${isMe ? 'You' : msg.user}</p><p class="leading-snug">${msg.text}</p>`;
+                const container = document.getElementById('chat-messages');
+                container.appendChild(div);
+                container.scrollTop = container.scrollHeight;
+            });
+
             document.getElementById('lobby-screen').classList.add('hidden');
             document.getElementById('game-screen').classList.remove('hidden');
             document.getElementById('display-code').innerText = roomID;
@@ -131,101 +162,113 @@
             if(me.role !== 'Hidden') {
                 document.getElementById('identity-box').classList.remove('hidden');
                 document.getElementById('my-role').innerText = me.role;
-            } else {
-                document.getElementById('identity-box').classList.add('hidden');
             }
 
             if(amIHost && data.state !== 'playing') {
                 document.getElementById('host-roll-btn').classList.remove('hidden');
-                document.getElementById('status-msg').innerText = "Host, click Roll to assign roles!";
             } else {
                 document.getElementById('host-roll-btn').classList.add('hidden');
-                if(data.state === 'playing') document.getElementById('status-msg').innerText = "Game is Live! Police must guess.";
             }
 
             Object.values(data.players).forEach(p => {
                 const card = document.createElement('div');
-                card.className = `role-card glass p-4 md:p-6 rounded-3xl flex flex-col items-center text-center shadow-lg ${p.name === myName ? 'border-yellow-500/50' : ''}`;
+                card.className = `glass p-4 rounded-3xl flex flex-col items-center text-center transition-all ${p.isTalking ? 'voice-active' : ''} ${p.name === myName ? 'border-yellow-500/40' : ''}`;
                 
-                let actionBtn = "";
+                let btn = "";
                 if(me.role === 'Police' && p.name !== myName && data.state === 'playing') {
-                    actionBtn = `<button onclick="makeGuess('${p.name}')" class="mt-4 w-full bg-red-600 text-white text-[10px] font-bold py-2 rounded-xl uppercase tracking-widest shadow-lg active:scale-95">GUESS THIEF</button>`;
+                    btn = `<button onclick="makeGuess('${p.name}')" class="mt-3 w-full bg-red-600 text-white text-[10px] font-800 py-2 rounded-xl uppercase tracking-widest shadow-lg">Guess Thief</button>`;
                 }
 
                 card.innerHTML = `
-                    <div class="w-10 h-10 md:w-12 md:h-12 bg-slate-800 rounded-full mb-2 flex items-center justify-center font-800 text-yellow-500 border border-white/10 text-lg">${p.name[0]}</div>
-                    <div class="font-bold text-xs md:text-sm text-white truncate w-full px-1">${p.name}</div>
-                    <div class="text-[9px] text-slate-400 font-bold">SCORE: ${p.score || 0}</div>
-                    ${actionBtn}
+                    <div class="w-10 h-10 bg-slate-800 rounded-full mb-2 flex items-center justify-center font-800 text-yellow-500 border border-white/5">${p.name[0]}</div>
+                    <div class="font-bold text-[11px] truncate w-full uppercase">${p.name}</div>
+                    <div class="text-[9px] text-slate-500 font-bold">PTS: ${p.score || 0}</div>
+                    ${btn}
                 `;
                 list.appendChild(card);
             });
         }
 
-        window.triggerRoll = () => {
-            const playersRef = ref(db, `raja_rani/${roomID}/players`);
-            get(playersRef).then((snap) => {
-                const count = snap.size;
-                if(count < 3) return alert("Need at least 3 players da!");
+        window.sendChat = () => {
+            const input = document.getElementById('chat-input');
+            const val = input.value.trim();
+            if(!val) return;
+            push(ref(db, `raja_rani/${roomID}/chats`), { user: myName, text: val });
+            input.value = "";
+        };
 
-                // Mandatory Roles
-                let rolesList = ['Police', 'Thief'];
-                
-                // Secondary Roles Pool
-                let secondaryPool = ['Raja', 'Rani', 'Mantri', 'Postman', 'Milkman', 'Citizen', 'Citizen'];
-                
-                // Fill up roles until we match player count
-                while(rolesList.length < count) {
-                    rolesList.push(secondaryPool.shift() || 'Citizen');
+        // Keyboard "Enter" to send
+        document.getElementById('chat-input').addEventListener('keypress', (e) => {
+            if(e.key === 'Enter') sendChat();
+        });
+
+        window.toggleChat = () => document.getElementById('chat-drawer').classList.toggle('open');
+
+        window.toggleVoice = async () => {
+            isVoiceOn = !isVoiceOn;
+            const btn = document.getElementById('voice-btn');
+            const status = document.getElementById('voice-status');
+            
+            if(isVoiceOn) {
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    btn.classList.add('bg-red-600');
+                    status.innerText = "Voice: ON";
+                    status.classList.replace('text-red-500', 'text-green-500');
+                    update(ref(db, `raja_rani/${roomID}/players/${myName}`), { isTalking: true });
+                } catch(e) {
+                    alert("Please allow Microphone access!");
+                    isVoiceOn = false;
                 }
-                
-                // Shuffle everything
-                rolesList = rolesList.sort(() => Math.random() - 0.5);
-                
+            } else {
+                if(localStream) localStream.getTracks().forEach(t => t.stop());
+                btn.classList.remove('bg-red-600');
+                status.innerText = "Voice: OFF";
+                status.classList.replace('text-green-500', 'text-red-500');
+                update(ref(db, `raja_rani/${roomID}/players/${myName}`), { isTalking: false });
+            }
+        };
+
+        window.triggerRoll = () => {
+            get(ref(db, `raja_rani/${roomID}/players`)).then((snap) => {
+                const count = snap.size;
+                if(count < 3) return alert("Need 3+ players da!");
+                let roles = ['Police', 'Thief'];
+                let pool = ['Raja', 'Rani', 'Mantri', 'Postman', 'Milkman', 'Citizen', 'Citizen'];
+                while(roles.length < count) roles.push(pool.shift() || 'Citizen');
+                roles = roles.sort(() => Math.random() - 0.5);
                 let i = 0;
                 snap.forEach((child) => {
-                    update(ref(db, `raja_rani/${roomID}/players/${child.key}`), { role: rolesList[i] });
-                    i++;
+                    update(ref(db, `raja_rani/${roomID}/players/${child.key}`), { role: roles[i++] });
                 });
                 update(ref(db, `raja_rani/${roomID}`), { state: 'playing' });
             });
         };
 
         window.makeGuess = (targetName) => {
-            const roomRef = ref(db, `raja_rani/${roomID}`);
-            get(roomRef).then((snap) => {
+            get(ref(db, `raja_rani/${roomID}`)).then((snap) => {
                 const data = snap.val();
                 const targetRole = data.players[targetName].role;
-                const thiefEntry = Object.entries(data.players).find(([k, v]) => v.role === 'Thief');
-                const thiefName = thiefEntry[0];
+                const thiefName = Object.keys(data.players).find(k => data.players[k].role === 'Thief');
 
                 if(targetRole === 'Thief') {
-                    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-                    alert(`Super! ${targetName} is the Thief!`);
+                    confetti({ particleCount: 150, spread: 60, origin: { y: 0.7 } });
+                    alert(`Super! ${targetName} was the Thief!`);
                     finalizeRound(data, myName, 300); 
                 } else {
-                    alert(`Wrong! ${targetName} was ${targetRole}. Thief was ${thiefName}!`);
+                    alert(`Wrong! Thief was ${thiefName}!`);
                     finalizeRound(data, thiefName, 300);
                 }
             });
         };
 
-        function finalizeRound(data, winnerName, bonus) {
+        function finalizeRound(data, winner, bonus) {
             Object.keys(data.players).forEach(name => {
-                let rP = 0;
-                const r = data.players[name].role;
-                
-                if(r === 'Raja') rP = 1500;
-                else if(r === 'Rani') rP = 1000;
-                else if(r === 'Mantri') rP = 800;
-                else if(r === 'Postman') rP = 200;
-                else if(r === 'Milkman') rP = 150;
-                else if(r === 'Citizen') rP = 100;
-                
-                const cur = data.players[name].score || 0;
-                const final = (name === winnerName) ? (rP + bonus) : rP;
-                
-                set(ref(db, `raja_rani/${roomID}/players/${name}/score`), cur + final);
+                let p = 0; const r = data.players[name].role;
+                if(r==='Raja') p=1500; else if(r==='Rani') p=1000; else if(r==='Mantri') p=800;
+                else if(r==='Postman') p=200; else if(r==='Milkman') p=150; else if(r==='Citizen') p=100;
+                const final = (name === winner) ? (p + bonus) : p;
+                set(ref(db, `raja_rani/${roomID}/players/${name}/score`), (data.players[name].score || 0) + final);
                 update(ref(db, `raja_rani/${roomID}/players/${name}`), { role: 'Hidden' });
             });
             update(ref(db, `raja_rani/${roomID}`), { state: 'idle' });
