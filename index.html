@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Raja Rani Pro | Chat & Voice</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
@@ -19,19 +19,22 @@
         .silver { color: #c0c0c0; }
         .bronze { color: #cd7f32; }
         
-        /* New Notification Styles */
+        /* Fixed Notification Styles for Mobile */
         #chat-notification { transform: translateY(-150%); transition: transform 0.3s ease; }
         #chat-notification.show { transform: translateY(0); }
         .badge { position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 99px; border: 2px solid #050a18; display: none; }
+        
+        /* Message Wrap Fix */
+        .msg-bubble { word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; }
     </style>
 </head>
 <body class="min-h-screen p-4 flex flex-col items-center">
 
-    <div id="chat-notification" class="fixed top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-sm glass p-3 rounded-2xl z-[200] flex items-center gap-3 border-l-4 border-yellow-500 shadow-2xl pointer-events-none">
+    <div id="chat-notification" class="fixed top-4 left-1/2 -translate-x-1/2 w-[92%] max-w-sm glass p-3 rounded-2xl z-[200] flex items-center gap-3 border-l-4 border-yellow-500 shadow-2xl pointer-events-none">
         <div class="bg-yellow-500/20 p-2 rounded-full text-lg">💬</div>
-        <div class="flex-1 overflow-hidden">
+        <div class="flex-1 min-w-0">
             <p id="notif-user" class="text-[10px] font-800 text-yellow-500 uppercase tracking-widest"></p>
-            <p id="notif-text" class="text-xs truncate text-slate-200"></p>
+            <p id="notif-text" class="text-xs text-slate-200 leading-tight"></p>
         </div>
     </div>
 
@@ -105,7 +108,7 @@
         </div>
     </div>
 
-    <div id="chat-drawer" class="chat-drawer fixed bottom-0 left-0 right-0 h-[65vh] glass rounded-t-[40px] z-[250] p-6 flex flex-col shadow-2xl">
+    <div id="chat-drawer" class="chat-drawer fixed bottom-0 left-0 right-0 h-[70vh] glass rounded-t-[40px] z-[250] p-6 flex flex-col shadow-2xl">
         <div class="flex justify-between items-center mb-4">
             <div class="w-12 h-1.5 bg-slate-600 rounded-full cursor-pointer" onclick="toggleChat()"></div>
             <h3 class="font-800 text-slate-400 text-xs uppercase tracking-widest ml-4">Room Chat</h3>
@@ -172,7 +175,7 @@
             document.getElementById('notif-user').innerText = user;
             document.getElementById('notif-text').innerText = text;
             notif.classList.add('show');
-            setTimeout(() => notif.classList.remove('show'), 3000);
+            setTimeout(() => notif.classList.remove('show'), 4000);
         }
 
         function connectToRoom() {
@@ -192,9 +195,13 @@
                 const isMe = msg.user === myName;
                 const isSystem = msg.user === "SYSTEM";
                 
-                div.className = isSystem ? "p-2 text-center text-[10px] text-yellow-500 font-bold uppercase tracking-widest bg-yellow-500/10 rounded-lg w-full mb-2" : `p-3 rounded-2xl max-w-[75%] shadow-md ${isMe ? 'bg-indigo-600 self-end rounded-tr-none' : 'bg-slate-800 self-start rounded-tl-none'}`;
-                
-                div.innerHTML = isSystem ? `🚨 ${msg.text}` : `<p class="text-[9px] opacity-60 font-bold uppercase mb-1">${isMe ? 'You' : msg.user}</p><p class="leading-snug">${msg.text}</p>`;
+                if(isSystem) {
+                    div.className = "p-3 text-center text-[11px] text-yellow-500 font-bold uppercase tracking-widest bg-yellow-500/10 rounded-2xl w-full mb-2 msg-bubble";
+                    div.innerHTML = `🚨 ${msg.text}`;
+                } else {
+                    div.className = `p-3 rounded-2xl max-w-[85%] shadow-md msg-bubble ${isMe ? 'bg-indigo-600 self-end rounded-tr-none' : 'bg-slate-800 self-start rounded-tl-none'}`;
+                    div.innerHTML = `<p class="text-[9px] opacity-60 font-bold uppercase mb-1">${isMe ? 'You' : msg.user}</p><p class="leading-tight text-[13px]">${msg.text}</p>`;
+                }
                 
                 const container = document.getElementById('chat-messages');
                 container.appendChild(div);
