@@ -58,6 +58,14 @@
 
     <!-- LOBBY -->
     <div id="lobby-screen" class="hidden w-full max-w-sm mt-10 space-y-6">
+        <div id="resume-box" class="hidden glass p-4 rounded-2xl text-center space-y-3 border border-yellow-500/30">
+            <p class="text-[10px] uppercase text-slate-400 font-bold tracking-widest">Continue your last game</p>
+            <p id="resume-code" class="text-3xl font-800 text-yellow-500 tracking-[0.3em] pl-[0.3em]"></p>
+            <div class="flex gap-2">
+                <button onclick="resumeLast()" class="flex-1 py-3 bg-yellow-500 text-slate-900 font-800 rounded-xl text-xs uppercase tracking-widest active:scale-95">Continue</button>
+                <button onclick="forgetLast()" class="px-4 py-3 bg-slate-700 font-bold rounded-xl text-xs uppercase active:scale-95">Forget</button>
+            </div>
+        </div>
         <div class="glass p-6 rounded-3xl space-y-6 shadow-2xl">
             <button onclick="createNewRoom()" class="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl active:scale-95 transition-all text-sm uppercase tracking-widest">Create Room</button>
             <div class="flex flex-col gap-3">
@@ -89,6 +97,14 @@
             </div>
         </div>
 
+        <div id="waiting-box" class="hidden glass p-5 rounded-2xl text-center border-t-2 border-indigo-500 shadow-xl space-y-3">
+            <p class="text-[10px] uppercase text-slate-400 font-bold tracking-widest">Waiting Room &bull; Share this code</p>
+            <div id="wait-code" class="text-5xl font-800 text-yellow-500 tracking-[0.3em] pl-[0.3em]">----</div>
+            <button onclick="copyCode()" id="copy-btn" class="px-5 py-2 bg-indigo-600 text-white text-[11px] font-800 rounded-xl uppercase tracking-widest active:scale-95 transition-all">Copy invite 📋</button>
+            <p id="wait-count" class="text-xs text-slate-300 font-bold uppercase"></p>
+            <p id="wait-hint" class="text-[11px] text-yellow-500 font-bold uppercase tracking-wide animate-pulse"></p>
+        </div>
+
         <div id="identity-box" class="hidden glass p-4 rounded-2xl text-center border-t-2 border-yellow-500 shadow-xl">
             <p class="text-[9px] uppercase text-slate-400 font-bold mb-1">Your Secret Role</p>
             <h2 id="my-role" class="text-3xl font-800 text-yellow-500 uppercase">---</h2>
@@ -101,7 +117,7 @@
                 <button id="take-host-btn" onclick="takeHost()" class="hidden flex-1 py-5 bg-indigo-600 text-white font-800 rounded-2xl shadow-2xl active:scale-95 transition-all">
                     TAKE HOST 👑
                 </button>
-                <button id="host-roll-btn" onclick="triggerRoll()" class="hidden flex-1 py-5 bg-yellow-500 text-slate-900 font-800 rounded-2xl shadow-2xl active:scale-95 transition-all">
+                <button id="host-roll-btn" onclick="triggerRoll()" class="hidden flex-1 text-sm py-5 bg-yellow-500 text-slate-900 font-800 rounded-2xl shadow-2xl active:scale-95 transition-all">
                     ROLL ROLES 🎲
                 </button>
                 <button id="host-end-btn" onclick="endGame()" class="hidden px-4 py-5 bg-red-600 text-white font-800 rounded-2xl shadow-2xl active:scale-95 transition-all">
@@ -234,7 +250,33 @@
             myName = n;
             try { localStorage.setItem(NAME_KEY, n); } catch (e) {}
             showScreen('lobby-screen');
+            refreshResumeBox();
+            $('r-code').focus();
         };
+
+        function refreshResumeBox() {
+            const s = loadSession();
+            const box = $('resume-box');
+            if (s && s.roomID && s.myName) {
+                $('resume-code').innerText = s.roomID;
+                box.classList.remove('hidden');
+            } else box.classList.add('hidden');
+        }
+
+        window.resumeLast = async () => {
+            const s = loadSession();
+            if (!s || busy) return;
+            busy = true;
+            try {
+                await authReady;
+                const host = await get(ref(db, `raja_rani/${s.roomID}/hostUid`));
+                if (!host.exists()) { clearSession(); refreshResumeBox(); return alert("That room no longer exists."); }
+                myName = s.myName; roomID = s.roomID;
+                await joinRoom();
+            } catch (e) { fail(e); } finally { busy = false; }
+        };
+
+        window.forgetLast = () => { clearSession(); refreshResumeBox(); };
 
         window.createNewRoom = async () => {
             if (busy) return; busy = true;
@@ -403,23 +445,39 @@
                 $('identity-box').classList.add('hidden');
             }
 
+            const onlineCount = Object.values(players).filter(p => p.online).length;
+            const enough = onlineCount >= 3;
+            const waiting = state !== 'playing';
+
+            // Waiting room panel
+            $('waiting-box').classList.toggle('hidden', !waiting);
+            $('wait-code').innerText = roomID;
+            $('wait-count').innerText = `${onlineCount} player${onlineCount === 1 ? '' : 's'} joined \u2022 need 3+ to start`;
+            $('wait-hint').innerText = amIHost
+                ? (enough ? 'Everyone here? Hit START below!' : 'Waiting for friends to join...')
+                : 'Waiting for the host to start the game...';
+
             // Host controls
             const hostPlayer = players[data.hostUid];
             const hostOffline = !hostPlayer || !hostPlayer.online;
+            const rollBtn = $('host-roll-btn');
             $('host-end-btn').classList.toggle('hidden', !amIHost);
-            $('host-roll-btn').classList.toggle('hidden', !amIHost);
-            $('host-roll-btn').innerText = state === 'playing' ? 'RE-ROLL 🎲' : 'ROLL ROLES 🎲';
+            rollBtn.classList.toggle('hidden', !amIHost);
+            rollBtn.disabled = !enough;
+            rollBtn.classList.toggle('opacity-50', !enough);
+            rollBtn.innerText = !enough
+                ? `WAITING FOR PLAYERS (${onlineCount}/3)`
+                : (state === 'playing' ? 'RE-ROLL 🎲' : 'START GAME ▶');
             $('take-host-btn').classList.toggle('hidden', amIHost || !hostOffline);
 
             // Status line
-            const onlineCount = Object.values(players).filter(p => p.online).length;
-            let status = `${onlineCount} online`;
+            let status;
             if (state === 'playing') {
-                status = me.role === 'Hidden' ? "Round in progress — you play next round" : "Round in progress";
-            } else if (onlineCount < 3) {
-                status = "Waiting for participants (need 3+)";
+                status = me.role === 'Hidden' ? "Round in progress \u2014 you play next round" : "Round in progress";
+            } else if (!enough) {
+                status = `Waiting for players (${onlineCount}/3)`;
             } else {
-                status = amIHost ? "Ready — roll the roles!" : "Waiting for host to roll";
+                status = amIHost ? "Ready \u2014 start the game!" : "Waiting for host to start";
             }
             $('status-msg').innerText = status;
 
@@ -617,6 +675,17 @@
             if (!finalShown) { finalShown = true; confetti({ particleCount: 200, spread: 70, origin: { y: 0.6 } }); }
         }
 
+        window.copyCode = async () => {
+            const link = `${location.origin}${location.pathname}?room=${roomID}`;
+            const text = `Join my Raja Rani game! Room code: ${roomID}\n${link}`;
+            try {
+                if (navigator.share) await navigator.share({ text });
+                else await navigator.clipboard.writeText(text);
+                const b = $('copy-btn'); const old = b.innerText;
+                b.innerText = 'Done ✅'; setTimeout(() => b.innerText = old, 1500);
+            } catch (e) { prompt('Copy this invite:', text); }
+        };
+
         // ---------- Leave / Home ----------
         window.exitRoom = async () => {
             if (!confirm("Leave the room? Your score is saved — rejoin anytime with the same code.")) return;
@@ -629,16 +698,8 @@
         // ---------- Auto-resume after refresh / app closed ----------
         (async () => {
             try { const n = localStorage.getItem(NAME_KEY); if (n) $('p-name').value = n; } catch (e) {}
-            const s = loadSession();
-            if (!s || !s.roomID || !s.myName) return;
-            try {
-                await authReady;
-                const host = await get(ref(db, `raja_rani/${s.roomID}/hostUid`));
-                if (!host.exists()) { clearSession(); return; }
-                myName = s.myName; roomID = s.roomID;
-                const ok = await joinRoom();
-                if (!ok) { clearSession(); showScreen('lobby-screen'); }
-            } catch (e) { console.error(e); }
+            const urlRoom = new URLSearchParams(location.search).get('room');
+            if (urlRoom) $('r-code').value = urlRoom.toUpperCase().slice(0, 4);
         })();
     </script>
 </body>
