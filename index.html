@@ -69,11 +69,12 @@
         <div class="glass p-6 rounded-3xl space-y-6 shadow-2xl">
             <button onclick="createNewRoom()" class="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl active:scale-95 transition-all text-sm uppercase tracking-widest">Create Room</button>
             <div class="flex flex-col gap-3">
-                <input type="text" id="r-code" maxlength="4" placeholder="ENTER CODE" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-2xl uppercase outline-none text-center tracking-widest">
+                <input type="text" id="r-code" maxlength="4" autocomplete="off" autocapitalize="characters" placeholder="ENTER CODE" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-2xl uppercase outline-none text-center tracking-widest">
                 <button onclick="joinExistingRoom()" class="w-full py-4 bg-slate-700 font-bold rounded-2xl active:scale-95">JOIN / REJOIN</button>
             </div>
             <p class="text-center text-[10px] text-slate-500 uppercase font-bold tracking-wide">Left a game? Enter the same code &amp; nickname to continue where you stopped.</p>
         </div>
+        <p id="conn-status" class="text-center text-[10px] font-bold uppercase tracking-widest text-slate-500">&#9679; Connecting...</p>
     </div>
 
     <!-- GAME -->
@@ -210,6 +211,19 @@
             alert("Login failed. In Firebase Console → Authentication → Sign-in method, enable ANONYMOUS.");
         });
 
+
+        // ---------- Connection indicator ----------
+        let dbConnected = false, loggedIn = false;
+        function updateConn() {
+            const el = $('conn-status');
+            if (!el) return;
+            const ok = dbConnected && loggedIn;
+            el.textContent = ok ? '\u25CF Connected' : (loggedIn ? '\u25CF Connecting to server...' : '\u25CF Logging in...');
+            el.className = `text-center text-[10px] font-bold uppercase tracking-widest ${ok ? 'text-green-500' : 'text-slate-500'}`;
+        }
+        onValue(ref(db, '.info/connected'), (s) => { dbConnected = s.val() === true; updateConn(); });
+        authReady.then(() => { loggedIn = true; updateConn(); });
+
         // ---------- Helpers ----------
         function showScreen(id) {
             ['auth-screen', 'lobby-screen', 'game-screen'].forEach(s => $(s).classList.toggle('hidden', s !== id));
@@ -242,6 +256,21 @@
             return push(ref(db, `${base()}/chats`), { user, text, uid: myUid, ts: serverTimestamp() });
         }
 
+        // Room codes skip look-alike characters (no O/0, I/1, L)
+        const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+        function genCode() {
+            let c = '';
+            for (let i = 0; i < 4; i++) c += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+            return c;
+        }
+        // Typed O/0 or I/1 may be swapped: try every combination
+        function codeVariants(code) {
+            const opts = [...code].map(ch => (ch === 'O' || ch === '0') ? ['O', '0'] : (ch === 'I' || ch === '1') ? ['I', '1'] : [ch]);
+            let out = [''];
+            opts.forEach(o => { out = out.flatMap(pre => o.map(c => pre + c)); });
+            return [...new Set(out)];
+        }
+
         // ---------- Lobby ----------
         window.enterLobby = () => {
             const n = $('p-name').value.trim().slice(0, NAME_MAX);
@@ -254,13 +283,17 @@
             $('r-code').focus();
         };
 
-        function refreshResumeBox() {
+        async function refreshResumeBox() {
             const s = loadSession();
             const box = $('resume-box');
-            if (s && s.roomID && s.myName) {
-                $('resume-code').innerText = s.roomID;
-                box.classList.remove('hidden');
-            } else box.classList.add('hidden');
+            if (!(s && s.roomID && s.myName)) { box.classList.add('hidden'); return; }
+            try {
+                await authReady;
+                const host = await get(ref(db, `raja_rani/${s.roomID}/hostUid`));
+                if (!host.exists()) { clearSession(); box.classList.add('hidden'); return; }   // stale room
+            } catch (e) {}
+            $('resume-code').innerText = s.roomID;
+            box.classList.remove('hidden');
         }
 
         window.resumeLast = async () => {
@@ -283,8 +316,7 @@
             try {
                 await authReady;
                 for (let i = 0; i < 6; i++) {
-                    const code = Math.random().toString(36).substring(2, 6).toUpperCase();
-                    if (!/^[A-Z0-9]{4}$/.test(code)) continue;
+                    const code = genCode();
                     try {
                         await set(ref(db, `raja_rani/${code}/hostUid`), myUid);   // fails if room already exists
                     } catch (e) { continue; }
@@ -298,14 +330,17 @@
 
         window.joinExistingRoom = async () => {
             if (busy) return;
-            const code = $('r-code').value.trim().toUpperCase();
-            if (!/^[A-Z0-9]{4}$/.test(code)) return alert("Enter the 4-letter room code");
+            const code = $('r-code').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (code.length !== 4) return alert("Enter the 4-character room code");
             busy = true;
             try {
                 await authReady;
-                const host = await get(ref(db, `raja_rani/${code}/hostUid`));
-                if (!host.exists()) return alert("Room not found da!");
-                roomID = code;
+                const variants = codeVariants(code);
+                const snaps = await Promise.all(variants.map(v => get(ref(db, `raja_rani/${v}/hostUid`))));
+                const found = variants.find((v, i) => v === code && snaps[i].exists())
+                           || variants.find((v, i) => snaps[i].exists());
+                if (!found) return alert(`Room ${code} not found.\n\nAsk the host to check the code, or create a new room.`);
+                roomID = found;
                 await joinRoom();
             } catch (e) { fail(e); } finally { busy = false; }
         };
@@ -526,6 +561,7 @@
             pushChat(val.slice(0, 300)).catch(fail);
             input.value = "";
         };
+        $('r-code').addEventListener('keypress', (e) => { if (e.key === 'Enter') joinExistingRoom(); });
         $('chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChat(); });
 
         window.toggleChat = () => {
