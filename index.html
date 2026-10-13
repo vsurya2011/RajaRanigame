@@ -10,6 +10,7 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
         body { font-family: 'Outfit', sans-serif; background: #050a18; color: #e2e8f0; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
+        .font-800 { font-weight: 800; }
         .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .chat-drawer { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); transform: translateY(100%); }
         .chat-drawer.open { transform: translateY(0); }
@@ -18,14 +19,19 @@
         .gold { color: #ffd700; text-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
         .silver { color: #c0c0c0; }
         .bronze { color: #cd7f32; }
-        
+
         /* Fixed Notification Styles for Mobile */
         #chat-notification { transform: translateY(-150%); transition: transform 0.3s ease; }
         #chat-notification.show { transform: translateY(0); }
         .badge { position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 99px; border: 2px solid #050a18; display: none; }
-        
+
         /* Message Wrap Fix */
         .msg-bubble { word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; }
+
+        /* Online / offline dot */
+        .dot { position: absolute; bottom: -1px; right: -1px; width: 11px; height: 11px; border-radius: 99px; border: 2px solid #1e293b; }
+        .dot.on { background: #22c55e; }
+        .dot.off { background: #64748b; }
     </style>
 </head>
 <body class="min-h-screen p-4 flex flex-col items-center">
@@ -38,27 +44,31 @@
         </div>
     </div>
 
+    <!-- AUTH / NICKNAME -->
     <div id="auth-screen" class="w-full max-w-sm mt-12 space-y-6">
         <div class="text-center">
             <h1 class="text-5xl font-800 text-yellow-500 mb-2 tracking-tighter uppercase">Raja Rani</h1>
             <p class="text-slate-400 text-sm font-bold uppercase tracking-widest">Multiplayer Edition</p>
         </div>
         <div class="glass p-6 rounded-3xl space-y-4 shadow-2xl">
-            <input type="text" id="p-name" placeholder="Enter Nickname" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-yellow-500 text-white">
+            <input type="text" id="p-name" maxlength="14" placeholder="Enter Nickname" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-yellow-500 text-white">
             <button onclick="enterLobby()" class="w-full py-4 bg-yellow-500 text-slate-900 font-800 rounded-2xl active:scale-95 transition-all">START GAME</button>
         </div>
     </div>
 
+    <!-- LOBBY -->
     <div id="lobby-screen" class="hidden w-full max-w-sm mt-10 space-y-6">
         <div class="glass p-6 rounded-3xl space-y-6 shadow-2xl">
             <button onclick="createNewRoom()" class="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl active:scale-95 transition-all text-sm uppercase tracking-widest">Create Room</button>
             <div class="flex flex-col gap-3">
-                <input type="text" id="r-code" placeholder="ENTER CODE" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-2xl uppercase outline-none text-center tracking-widest">
-                <button onclick="joinExistingRoom()" class="w-full py-4 bg-slate-700 font-bold rounded-2xl active:scale-95">JOIN</button>
+                <input type="text" id="r-code" maxlength="4" placeholder="ENTER CODE" class="w-full bg-slate-800 border border-slate-700 p-4 rounded-2xl uppercase outline-none text-center tracking-widest">
+                <button onclick="joinExistingRoom()" class="w-full py-4 bg-slate-700 font-bold rounded-2xl active:scale-95">JOIN / REJOIN</button>
             </div>
+            <p class="text-center text-[10px] text-slate-500 uppercase font-bold tracking-wide">Left a game? Enter the same code &amp; nickname to continue where you stopped.</p>
         </div>
     </div>
 
+    <!-- GAME -->
     <div id="game-screen" class="hidden w-full max-w-2xl space-y-4 pb-40">
         <div class="flex justify-between items-center glass p-4 rounded-2xl shadow-lg">
             <div class="flex flex-col">
@@ -71,6 +81,7 @@
                     <button onclick="toggleChat()" class="p-3 bg-slate-700 rounded-xl text-lg hover:bg-slate-600 transition-colors">💬</button>
                     <div id="chat-badge" class="badge">0</div>
                 </div>
+                <button onclick="exitRoom()" title="Leave room (you can rejoin later)" class="p-3 bg-slate-700 rounded-xl text-lg hover:bg-slate-600 transition-colors">🚪</button>
             </div>
             <div class="text-right">
                 <span class="text-[10px] text-slate-400 font-bold uppercase">Score</span>
@@ -87,6 +98,9 @@
 
         <div class="fixed bottom-0 left-0 right-0 p-6 flex flex-col items-center gap-2 pointer-events-none">
             <div class="flex gap-2 w-full max-w-sm pointer-events-auto">
+                <button id="take-host-btn" onclick="takeHost()" class="hidden flex-1 py-5 bg-indigo-600 text-white font-800 rounded-2xl shadow-2xl active:scale-95 transition-all">
+                    TAKE HOST 👑
+                </button>
                 <button id="host-roll-btn" onclick="triggerRoll()" class="hidden flex-1 py-5 bg-yellow-500 text-slate-900 font-800 rounded-2xl shadow-2xl active:scale-95 transition-all">
                     ROLL ROLES 🎲
                 </button>
@@ -100,14 +114,16 @@
         </div>
     </div>
 
+    <!-- FINAL LEADERBOARD -->
     <div id="leaderboard-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-6">
         <div class="glass w-full max-w-sm rounded-[40px] p-8 text-center space-y-6 border-2 border-yellow-500/30">
             <h2 class="text-4xl font-800 text-yellow-500 uppercase tracking-tighter">Final Rankings</h2>
             <div id="ranking-list" class="space-y-4"></div>
-            <button onclick="location.reload()" class="w-full py-4 bg-slate-700 text-white font-800 rounded-2xl uppercase text-xs tracking-widest">Back to Home</button>
+            <button onclick="backToHome()" class="w-full py-4 bg-slate-700 text-white font-800 rounded-2xl uppercase text-xs tracking-widest">Back to Home</button>
         </div>
     </div>
 
+    <!-- CHAT DRAWER -->
     <div id="chat-drawer" class="chat-drawer fixed bottom-0 left-0 right-0 h-[70vh] glass rounded-t-[40px] z-[250] p-6 flex flex-col shadow-2xl">
         <div class="flex justify-between items-center mb-4">
             <div class="w-12 h-1.5 bg-slate-600 rounded-full cursor-pointer" onclick="toggleChat()"></div>
@@ -118,18 +134,20 @@
                 </svg>
             </button>
         </div>
-        
+
         <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 mb-4 p-2 flex flex-col"></div>
 
         <div class="flex gap-2 p-2 bg-slate-900/50 rounded-2xl">
-            <input type="text" id="chat-input" placeholder="Type message..." class="flex-1 bg-transparent p-4 outline-none text-white text-sm">
+            <input type="text" id="chat-input" maxlength="300" placeholder="Type message..." class="flex-1 bg-transparent p-4 outline-none text-white text-sm">
             <button onclick="sendChat()" class="bg-yellow-500 text-black px-6 py-3 rounded-xl font-800 active:scale-95 transition-all">SEND</button>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, set, onValue, update, get, push, onChildAdded, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getAnalytics, isSupported } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getDatabase, ref, set, onValue, update, get, push, onChildAdded, onDisconnect, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCg2LXzyUOasdVK9QtJ-jDvt0a_cYo62Us",
@@ -143,242 +161,470 @@
         };
 
         const app = initializeApp(firebaseConfig);
+        isSupported().then(ok => { if (ok) getAnalytics(app); }).catch(() => {});
+        const auth = getAuth(app);
         const db = getDatabase(app);
-        let myName, roomID, amIHost = false, isVoiceOn = false;
-        let unreadCount = 0;
-        let chatOpen = false;
+
+        // ---------- State ----------
+        const $ = (id) => document.getElementById(id);
+        const NAME_MAX = 14;
+        const SESSION_KEY = 'rr_session_v2';
+        const NAME_KEY = 'rr_name_v2';
+        const ROLE_POINTS = { Raja: 1500, Rani: 1000, Mantri: 800, Postman: 200, Milkman: 150, Citizen: 100 };
+
+        let myName = '', myUid = null, roomID = null;
+        let amIHost = false, isVoiceOn = false, busy = false, finalShown = false;
+        let unreadCount = 0, chatOpen = false;
+        let latestData = null;
+        const seenChats = new Set();
 
         const AGORA_APP_ID = "031e2ac6cafc49c396567b5fa9dd3a47";
-        let rtc = { localAudioTrack: null, client: AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }) };
+        const rtc = { localAudioTrack: null, client: AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }) };
+        rtc.client.on("user-published", async (user, mediaType) => {
+            await rtc.client.subscribe(user, mediaType);
+            if (mediaType === "audio") user.audioTrack.play();
+        });
 
-        window.enterLobby = () => {
-            myName = document.getElementById('p-name').value.trim();
-            if(!myName) return;
-            document.getElementById('auth-screen').classList.add('hidden');
-            document.getElementById('lobby-screen').classList.remove('hidden');
-        };
+        // ---------- Auth (anonymous, persists in the browser) ----------
+        const authReady = new Promise((resolve) => {
+            onAuthStateChanged(auth, (user) => { if (user) { myUid = user.uid; resolve(user); } });
+        });
+        signInAnonymously(auth).catch((e) => {
+            console.error(e);
+            alert("Login failed. In Firebase Console → Authentication → Sign-in method, enable ANONYMOUS.");
+        });
 
-        window.createNewRoom = () => {
-            roomID = Math.random().toString(36).substring(2, 6).toUpperCase();
-            amIHost = true;
-            connectToRoom();
-        };
-
-        window.joinExistingRoom = () => {
-            roomID = document.getElementById('r-code').value.toUpperCase();
-            if(roomID) connectToRoom();
-        };
-
-        function showNotification(user, text) {
-            if(user === myName) return;
-            const notif = document.getElementById('chat-notification');
-            document.getElementById('notif-user').innerText = user;
-            document.getElementById('notif-text').innerText = text;
-            notif.classList.add('show');
-            setTimeout(() => notif.classList.remove('show'), 4000);
+        // ---------- Helpers ----------
+        function showScreen(id) {
+            ['auth-screen', 'lobby-screen', 'game-screen'].forEach(s => $(s).classList.toggle('hidden', s !== id));
+        }
+        const base = () => `raja_rani/${roomID}`;
+        function saveSession() { try { localStorage.setItem(SESSION_KEY, JSON.stringify({ roomID, myName })); } catch (e) {} }
+        function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch (e) {} }
+        function loadSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; } }
+        function fail(e) {
+            console.error(e);
+            const denied = String(e && (e.code || e.message)).toLowerCase().includes('permission');
+            alert(denied ? "Permission denied. Check your Realtime Database rules." : "Something went wrong. Try again.");
+        }
+        function pushChat(text, user = myName) {
+            return push(ref(db, `${base()}/chats`), { user, text, uid: myUid, ts: serverTimestamp() });
         }
 
-        function connectToRoom() {
-            set(ref(db, `raja_rani/${roomID}/players/${myName}`), { name: myName, score: 0, role: 'Hidden', isTalking: false });
-            
-            onValue(ref(db, 'raja_rani/' + roomID), (snap) => {
-                const data = snap.val();
-                if(data) {
-                    if(data.state === 'ended') showFinalLeaderboard(data.players);
-                    else renderGame(data);
+        // ---------- Lobby ----------
+        window.enterLobby = () => {
+            const n = $('p-name').value.trim().slice(0, NAME_MAX);
+            if (!n) return;
+            if (n.toUpperCase() === 'SYSTEM') return alert("Pick another nickname da!");
+            myName = n;
+            try { localStorage.setItem(NAME_KEY, n); } catch (e) {}
+            showScreen('lobby-screen');
+        };
+
+        window.createNewRoom = async () => {
+            if (busy) return; busy = true;
+            try {
+                await authReady;
+                for (let i = 0; i < 6; i++) {
+                    const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+                    if (!/^[A-Z0-9]{4}$/.test(code)) continue;
+                    try {
+                        await set(ref(db, `raja_rani/${code}/hostUid`), myUid);   // fails if room already exists
+                    } catch (e) { continue; }
+                    roomID = code;
+                    await joinRoom();
+                    return;
+                }
+                alert("Could not create a room. Try again.");
+            } catch (e) { fail(e); } finally { busy = false; }
+        };
+
+        window.joinExistingRoom = async () => {
+            if (busy) return;
+            const code = $('r-code').value.trim().toUpperCase();
+            if (!/^[A-Z0-9]{4}$/.test(code)) return alert("Enter the 4-letter room code");
+            busy = true;
+            try {
+                await authReady;
+                const host = await get(ref(db, `raja_rani/${code}/hostUid`));
+                if (!host.exists()) return alert("Room not found da!");
+                roomID = code;
+                await joinRoom();
+            } catch (e) { fail(e); } finally { busy = false; }
+        };
+
+        // ---------- Join / Rejoin ----------
+        async function joinRoom() {
+            const playersSnap = await get(ref(db, `${base()}/players`));
+            const players = playersSnap.val() || {};
+
+            const nameTaken = Object.entries(players).some(([uid, p]) =>
+                uid !== myUid && String(p.name || '').toLowerCase() === myName.toLowerCase());
+            if (nameTaken) {
+                alert("That nickname is already used in this room by another player. Pick a different one.");
+                showScreen('auth-screen');
+                return false;
+            }
+
+            const myRef = ref(db, `${base()}/players/${myUid}`);
+            const existing = players[myUid];
+            let announce = null;
+
+            if (existing) {
+                // RETURNING PLAYER: keep score + role, only mark online (and rename if changed)
+                const patch = { online: true };
+                if (existing.name !== myName) patch.name = myName;
+                await update(myRef, patch);
+                if (!existing.online) announce = `${myName} is back in the room`;
+            } else {
+                await set(myRef, { name: myName, score: 0, role: 'Hidden', online: true, isTalking: false });
+                announce = `${myName} joined the room`;
+            }
+
+            saveSession();
+
+            const offset = (await get(ref(db, '.info/serverTimeOffset'))).val() || 0;
+            const joinAt = Date.now() + offset;
+
+            startPresence();
+            listenRoom();
+            listenChats(joinAt);
+
+            $('display-code').innerText = roomID;
+            showScreen('game-screen');
+            if (announce) pushChat(announce, 'SYSTEM');
+            return true;
+        }
+
+        function startPresence() {
+            const onlineRef = ref(db, `${base()}/players/${myUid}/online`);
+            const talkRef = ref(db, `${base()}/players/${myUid}/isTalking`);
+            onValue(ref(db, '.info/connected'), (s) => {
+                if (s.val() === true) {
+                    onDisconnect(onlineRef).set(false);
+                    onDisconnect(talkRef).set(false);
+                    set(onlineRef, true);
+                    set(talkRef, isVoiceOn);
                 }
             });
+        }
 
-            onChildAdded(ref(db, `raja_rani/${roomID}/chats`), (snap) => {
+        function listenRoom() {
+            onValue(ref(db, base()), (snap) => {
+                const data = snap.val();
+                if (!data || !data.players) return;
+                latestData = data;
+                if (data.state === 'ended') showFinalLeaderboard(data.players);
+                else renderGame(data);
+            });
+        }
+
+        function listenChats(joinAt) {
+            onChildAdded(ref(db, `${base()}/chats`), (snap) => {
+                if (seenChats.has(snap.key)) return;
+                seenChats.add(snap.key);
                 const msg = snap.val();
-                const div = document.createElement('div');
-                const isMe = msg.user === myName;
-                const isSystem = msg.user === "SYSTEM";
-                
-                if(isSystem) {
-                    div.className = "p-3 text-center text-[11px] text-yellow-500 font-bold uppercase tracking-widest bg-yellow-500/10 rounded-2xl w-full mb-2 msg-bubble";
-                    div.innerHTML = `🚨 ${msg.text}`;
-                } else {
-                    div.className = `p-3 rounded-2xl max-w-[85%] shadow-md msg-bubble ${isMe ? 'bg-indigo-600 self-end rounded-tr-none' : 'bg-slate-800 self-start rounded-tl-none'}`;
-                    div.innerHTML = `<p class="text-[9px] opacity-60 font-bold uppercase mb-1">${isMe ? 'You' : msg.user}</p><p class="leading-tight text-[13px]">${msg.text}</p>`;
-                }
-                
-                const container = document.getElementById('chat-messages');
-                container.appendChild(div);
-                container.scrollTop = container.scrollHeight;
+                addChatBubble(msg);
 
-                if(!chatOpen && !isMe) {
+                const isMe = msg.uid === myUid;
+                const isNew = (msg.ts || 0) > joinAt;           // don't notify for old history
+                if (isNew && !chatOpen && !isMe) {
                     unreadCount++;
-                    const badge = document.getElementById('chat-badge');
+                    const badge = $('chat-badge');
                     badge.innerText = unreadCount;
                     badge.style.display = 'block';
                     showNotification(msg.user, msg.text);
                 }
             });
-
-            document.getElementById('lobby-screen').classList.add('hidden');
-            document.getElementById('game-screen').classList.remove('hidden');
-            document.getElementById('display-code').innerText = roomID;
         }
 
-        function renderGame(data) {
-            const list = document.getElementById('player-list');
-            list.innerHTML = '';
-            const me = data.players[myName];
-            document.getElementById('display-score').innerText = me.score || 0;
-            
-            if(me.role !== 'Hidden') {
-                document.getElementById('identity-box').classList.remove('hidden');
-                document.getElementById('my-role').innerText = me.role;
+        function addChatBubble(msg) {
+            const isMe = msg.uid === myUid;
+            const isSystem = msg.user === "SYSTEM";
+            const div = document.createElement('div');
+
+            if (isSystem) {
+                div.className = "p-3 text-center text-[11px] text-yellow-500 font-bold uppercase tracking-widest bg-yellow-500/10 rounded-2xl w-full mb-2 msg-bubble";
+                div.textContent = `🚨 ${msg.text}`;
             } else {
-                document.getElementById('identity-box').classList.add('hidden');
+                div.className = `p-3 rounded-2xl max-w-[85%] shadow-md msg-bubble ${isMe ? 'bg-indigo-600 self-end rounded-tr-none' : 'bg-slate-800 self-start rounded-tl-none'}`;
+                const who = document.createElement('p');
+                who.className = "text-[9px] opacity-60 font-bold uppercase mb-1";
+                who.textContent = isMe ? 'You' : msg.user;
+                const txt = document.createElement('p');
+                txt.className = "leading-tight text-[13px]";
+                txt.textContent = msg.text;
+                div.append(who, txt);
             }
-
-            if(amIHost) {
-                document.getElementById('host-end-btn').classList.remove('hidden');
-                if(data.state !== 'playing') document.getElementById('host-roll-btn').classList.remove('hidden');
-                else document.getElementById('host-roll-btn').classList.add('hidden');
-            }
-
-            Object.values(data.players).forEach(p => {
-                const card = document.createElement('div');
-                card.className = `glass p-4 rounded-3xl flex flex-col items-center text-center transition-all ${p.isTalking ? 'voice-active' : ''} ${p.name === myName ? 'border-yellow-500/40' : ''}`;
-                
-                let btn = "";
-                if(me.role === 'Police' && p.name !== myName && data.state === 'playing') {
-                    btn = `<button onclick="makeGuess('${p.name}')" class="mt-3 w-full bg-red-600 text-white text-[10px] font-800 py-2 rounded-xl uppercase tracking-widest shadow-lg">Guess Thief</button>`;
-                }
-
-                card.innerHTML = `
-                    <div class="w-10 h-10 bg-slate-800 rounded-full mb-2 flex items-center justify-center font-800 text-yellow-500 border border-white/5">${p.name[0]}</div>
-                    <div class="font-bold text-[11px] truncate w-full uppercase">${p.name}</div>
-                    <div class="text-[9px] text-slate-500 font-bold">PTS: ${p.score || 0}</div>
-                    ${btn}
-                `;
-                list.appendChild(card);
-            });
+            const container = $('chat-messages');
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
         }
 
+        function showNotification(user, text) {
+            if (user === myName) return;
+            const notif = $('chat-notification');
+            $('notif-user').innerText = user;
+            $('notif-text').innerText = text;
+            notif.classList.add('show');
+            setTimeout(() => notif.classList.remove('show'), 4000);
+        }
+
+        // ---------- Render ----------
+        function renderGame(data) {
+            $('leaderboard-modal').classList.add('hidden');
+            const players = data.players;
+            const me = players[myUid];
+            if (!me) return;
+
+            amIHost = data.hostUid === myUid;
+            const state = data.state || 'idle';
+            $('display-score').innerText = me.score || 0;
+
+            if (me.role !== 'Hidden') {
+                $('identity-box').classList.remove('hidden');
+                $('my-role').innerText = me.role;
+            } else {
+                $('identity-box').classList.add('hidden');
+            }
+
+            // Host controls
+            const hostPlayer = players[data.hostUid];
+            const hostOffline = !hostPlayer || !hostPlayer.online;
+            $('host-end-btn').classList.toggle('hidden', !amIHost);
+            $('host-roll-btn').classList.toggle('hidden', !amIHost);
+            $('host-roll-btn').innerText = state === 'playing' ? 'RE-ROLL 🎲' : 'ROLL ROLES 🎲';
+            $('take-host-btn').classList.toggle('hidden', amIHost || !hostOffline);
+
+            // Status line
+            const onlineCount = Object.values(players).filter(p => p.online).length;
+            let status = `${onlineCount} online`;
+            if (state === 'playing') {
+                status = me.role === 'Hidden' ? "Round in progress — you play next round" : "Round in progress";
+            } else if (onlineCount < 3) {
+                status = "Waiting for participants (need 3+)";
+            } else {
+                status = amIHost ? "Ready — roll the roles!" : "Waiting for host to roll";
+            }
+            $('status-msg').innerText = status;
+
+            // Player cards
+            const list = $('player-list');
+            list.innerHTML = '';
+            Object.entries(players)
+                .sort((a, b) => String(a[1].name).localeCompare(String(b[1].name)))
+                .forEach(([uid, p]) => {
+                    const card = document.createElement('div');
+                    card.className = `glass p-4 rounded-3xl flex flex-col items-center text-center transition-all ${p.isTalking && p.online ? 'voice-active' : ''} ${uid === myUid ? 'border-yellow-500/40' : ''} ${p.online ? '' : 'opacity-50'}`;
+
+                    const av = document.createElement('div');
+                    av.className = "relative w-10 h-10 bg-slate-800 rounded-full mb-2 flex items-center justify-center font-800 text-yellow-500 border border-white/5";
+                    av.textContent = String(p.name || '?')[0].toUpperCase();
+                    const dot = document.createElement('span');
+                    dot.className = `dot ${p.online ? 'on' : 'off'}`;
+                    av.appendChild(dot);
+
+                    const nm = document.createElement('div');
+                    nm.className = "font-bold text-[11px] truncate w-full uppercase";
+                    nm.textContent = p.name + (uid === data.hostUid ? ' 👑' : '');
+
+                    const pts = document.createElement('div');
+                    pts.className = "text-[9px] text-slate-500 font-bold";
+                    pts.textContent = `PTS: ${p.score || 0}`;
+
+                    card.append(av, nm, pts);
+
+                    if (me.role === 'Police' && uid !== myUid && state === 'playing' && p.role !== 'Hidden') {
+                        const btn = document.createElement('button');
+                        btn.className = "mt-3 w-full bg-red-600 text-white text-[10px] font-800 py-2 rounded-xl uppercase tracking-widest shadow-lg";
+                        btn.textContent = "Guess Thief";
+                        btn.addEventListener('click', () => makeGuess(uid));
+                        card.appendChild(btn);
+                    }
+                    list.appendChild(card);
+                });
+        }
+
+        // ---------- Chat ----------
         window.sendChat = () => {
-            const input = document.getElementById('chat-input');
+            const input = $('chat-input');
             const val = input.value.trim();
-            if(!val) return;
-            push(ref(db, `raja_rani/${roomID}/chats`), { user: myName, text: val });
+            if (!val || !roomID) return;
+            pushChat(val.slice(0, 300)).catch(fail);
             input.value = "";
         };
+        $('chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChat(); });
 
-        document.getElementById('chat-input').addEventListener('keypress', (e) => { if(e.key === 'Enter') sendChat(); });
-        
         window.toggleChat = () => {
-            const drawer = document.getElementById('chat-drawer');
             chatOpen = !chatOpen;
-            drawer.classList.toggle('open');
-            if(chatOpen) {
+            $('chat-drawer').classList.toggle('open');
+            if (chatOpen) {
                 unreadCount = 0;
-                document.getElementById('chat-badge').style.display = 'none';
+                $('chat-badge').style.display = 'none';
             }
         };
 
+        // ---------- Voice ----------
         window.toggleVoice = async () => {
-            isVoiceOn = !isVoiceOn;
-            const btn = document.getElementById('voice-btn');
-            const status = document.getElementById('voice-status');
-            if(isVoiceOn) {
+            const btn = $('voice-btn');
+            const status = $('voice-status');
+            const talkRef = ref(db, `${base()}/players/${myUid}/isTalking`);
+            if (!isVoiceOn) {
                 try {
                     await rtc.client.join(AGORA_APP_ID, roomID, null, null);
                     rtc.localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
                     await rtc.client.publish([rtc.localAudioTrack]);
-                    rtc.client.on("user-published", async (user, mediaType) => {
-                        await rtc.client.subscribe(user, mediaType);
-                        if (mediaType === "audio") user.audioTrack.play();
-                    });
+                    isVoiceOn = true;
                     btn.classList.add('bg-red-600'); status.innerText = "Voice: ON";
                     status.classList.replace('text-red-500', 'text-green-500');
-                    update(ref(db, `raja_rani/${roomID}/players/${myName}`), { isTalking: true });
-                } catch(e) { alert("Mic failed!"); isVoiceOn = false; }
+                    set(talkRef, true);
+                } catch (e) {
+                    console.error(e);
+                    try { await rtc.client.leave(); } catch (_) {}
+                    isVoiceOn = false;
+                    alert("Mic failed!");
+                }
             } else {
-                if(rtc.localAudioTrack) { rtc.localAudioTrack.stop(); rtc.localAudioTrack.close(); }
-                await rtc.client.leave();
+                isVoiceOn = false;
+                if (rtc.localAudioTrack) { rtc.localAudioTrack.stop(); rtc.localAudioTrack.close(); rtc.localAudioTrack = null; }
+                try { await rtc.client.leave(); } catch (_) {}
                 btn.classList.remove('bg-red-600'); status.innerText = "Voice: OFF";
                 status.classList.replace('text-green-500', 'text-red-500');
-                update(ref(db, `raja_rani/${roomID}/players/${myName}`), { isTalking: false });
+                set(talkRef, false);
             }
         };
 
-        window.triggerRoll = () => {
-            get(ref(db, `raja_rani/${roomID}/players`)).then((snap) => {
-                const count = snap.size;
-                if(count < 3) return alert("Need 3+ players da!");
-                let roles = ['Police', 'Thief'];
-                let pool = ['Raja', 'Rani', 'Mantri', 'Postman', 'Milkman', 'Citizen', 'Citizen'];
-                while(roles.length < count) roles.push(pool.shift() || 'Citizen');
-                roles = roles.sort(() => Math.random() - 0.5);
-                let i = 0;
-                snap.forEach((child) => { update(ref(db, `raja_rani/${roomID}/players/${child.key}`), { role: roles[i++] }); });
-                update(ref(db, `raja_rani/${roomID}`), { state: 'playing' });
-                push(ref(db, `raja_rani/${roomID}/chats`), { user: "SYSTEM", text: "Roles have been assigned! Police, find the thief!" });
-            });
-        };
-
-        window.makeGuess = (targetName) => {
-            get(ref(db, `raja_rani/${roomID}`)).then((snap) => {
+        // ---------- Game logic ----------
+        window.triggerRoll = async () => {
+            try {
+                const snap = await get(ref(db, base()));
                 const data = snap.val();
-                const targetRole = data.players[targetName].role;
-                const thiefName = Object.keys(data.players).find(k => data.players[k].role === 'Thief');
+                if (!data || data.hostUid !== myUid) return;
+                const players = data.players || {};
 
-                if(targetRole === 'Thief') {
-                    confetti({ particleCount: 150, spread: 60, origin: { y: 0.7 } });
-                    push(ref(db, `raja_rani/${roomID}/chats`), { user: "SYSTEM", text: `Police (${myName}) found the Thief (${thiefName})! +300 PTS` });
-                    finalizeRound(data, myName, 300); 
-                } else {
-                    push(ref(db, `raja_rani/${roomID}/chats`), { user: "SYSTEM", text: `Wrong guess! Thief was ${thiefName}! Thief wins +300 PTS` });
-                    finalizeRound(data, thiefName, 300);
+                const onlineUids = Object.keys(players).filter(u => players[u].online);
+                if (onlineUids.length < 3) return alert("Need 3+ players online da!");
+                if (data.state === 'playing' && !confirm("A round is running. Re-roll roles and restart it?")) return;
+
+                let roles = ['Police', 'Thief'];
+                const pool = ['Raja', 'Rani', 'Mantri', 'Postman', 'Milkman', 'Citizen', 'Citizen'];
+                while (roles.length < onlineUids.length) roles.push(pool.shift() || 'Citizen');
+                for (let i = roles.length - 1; i > 0; i--) {            // Fisher-Yates shuffle
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [roles[i], roles[j]] = [roles[j], roles[i]];
                 }
-            });
+
+                const updates = { state: 'playing' };
+                Object.keys(players).forEach(u => { updates[`players/${u}/role`] = 'Hidden'; });
+                onlineUids.forEach((u, i) => { updates[`players/${u}/role`] = roles[i]; });
+
+                await update(ref(db, base()), updates);
+                pushChat("Roles have been assigned! Police, find the thief!", 'SYSTEM');
+            } catch (e) { fail(e); }
         };
 
-        function finalizeRound(data, winner, bonus) {
-            Object.keys(data.players).forEach(name => {
-                let p = 0; const r = data.players[name].role;
-                if(r==='Raja') p=1500; else if(r==='Rani') p=1000; else if(r==='Mantri') p=800;
-                else if(r==='Postman') p=200; else if(r==='Milkman') p=150; else if(r==='Citizen') p=100;
-                const final = (name === winner) ? (p + bonus) : p;
-                set(ref(db, `raja_rani/${roomID}/players/${name}/score`), (data.players[name].score || 0) + final);
-                update(ref(db, `raja_rani/${roomID}/players/${name}`), { role: 'Hidden' });
+        let guessing = false;
+        window.makeGuess = async (targetUid) => {
+            if (guessing) return; guessing = true;
+            try {
+                const snap = await get(ref(db, base()));
+                const data = snap.val();
+                if (!data || data.state !== 'playing') return;
+                const players = data.players;
+                if (!players[myUid] || players[myUid].role !== 'Police' || !players[targetUid]) return;
+
+                const thiefUid = Object.keys(players).find(k => players[k].role === 'Thief');
+                if (!thiefUid) return;
+                const thiefName = players[thiefUid].name;
+
+                if (players[targetUid].role === 'Thief') {
+                    confetti({ particleCount: 150, spread: 60, origin: { y: 0.7 } });
+                    await finalizeRound(players, myUid, 300);
+                    pushChat(`Police (${myName}) found the Thief (${thiefName})! +300 PTS`, 'SYSTEM');
+                } else {
+                    await finalizeRound(players, thiefUid, 300);
+                    pushChat(`Wrong guess! Thief was ${thiefName}! Thief wins +300 PTS`, 'SYSTEM');
+                }
+            } catch (e) { fail(e); } finally { guessing = false; }
+        };
+
+        function finalizeRound(players, winnerUid, bonus) {
+            const updates = { state: 'idle' };
+            Object.entries(players).forEach(([uid, p]) => {
+                const pts = (ROLE_POINTS[p.role] || 0) + (uid === winnerUid ? bonus : 0);
+                updates[`players/${uid}/score`] = (p.score || 0) + pts;
+                updates[`players/${uid}/role`] = 'Hidden';
             });
-            update(ref(db, `raja_rani/${roomID}`), { state: 'idle' });
+            return update(ref(db, base()), updates);   // one atomic write
         }
 
+        window.takeHost = async () => {
+            try { await set(ref(db, `${base()}/hostUid`), myUid); pushChat(`${myName} is the new host`, 'SYSTEM'); }
+            catch (e) { fail(e); }
+        };
+
         window.endGame = () => {
-            if(!confirm("End the game and see final rankings?")) return;
-            update(ref(db, `raja_rani/${roomID}`), { state: 'ended' });
+            if (!confirm("End the game and see final rankings?")) return;
+            update(ref(db, base()), { state: 'ended' }).catch(fail);
         };
 
         function showFinalLeaderboard(players) {
             const sorted = Object.values(players).sort((a, b) => (b.score || 0) - (a.score || 0));
-            const list = document.getElementById('ranking-list');
+            const list = $('ranking-list');
             list.innerHTML = '';
-            
+            const colors = ['gold', 'silver', 'bronze'];
+            const icons = ['🥇', '🥈', '🥉'];
+
             sorted.slice(0, 3).forEach((p, idx) => {
-                const colors = ['gold', 'silver', 'bronze'];
-                const icons = ['🥇', '🥈', '🥉'];
-                const div = document.createElement('div');
-                div.className = `p-4 rounded-2xl bg-white/5 flex justify-between items-center border border-white/5 ${colors[idx]}`;
-                div.innerHTML = `
-                    <div class="flex items-center gap-3">
-                        <span class="text-2xl">${icons[idx]}</span>
-                        <div class="text-left">
-                            <p class="font-800 uppercase text-sm">${p.name}</p>
-                            <p class="text-[10px] opacity-60">Rank ${idx + 1}</p>
-                        </div>
-                    </div>
-                    <div class="text-xl font-800">${p.score || 0}</div>
-                `;
-                list.appendChild(div);
+                const row = document.createElement('div');
+                row.className = `p-4 rounded-2xl bg-white/5 flex justify-between items-center border border-white/5 ${colors[idx]}`;
+
+                const left = document.createElement('div');
+                left.className = "flex items-center gap-3";
+                const icon = document.createElement('span');
+                icon.className = "text-2xl"; icon.textContent = icons[idx];
+                const info = document.createElement('div');
+                info.className = "text-left";
+                const nm = document.createElement('p');
+                nm.className = "font-800 uppercase text-sm"; nm.textContent = p.name;
+                const rk = document.createElement('p');
+                rk.className = "text-[10px] opacity-60"; rk.textContent = `Rank ${idx + 1}`;
+                info.append(nm, rk);
+                left.append(icon, info);
+
+                const sc = document.createElement('div');
+                sc.className = "text-xl font-800"; sc.textContent = p.score || 0;
+
+                row.append(left, sc);
+                list.appendChild(row);
             });
-            document.getElementById('leaderboard-modal').classList.remove('hidden');
-            confetti({ particleCount: 200, spread: 70, origin: { y: 0.6 } });
+            $('leaderboard-modal').classList.remove('hidden');
+            if (!finalShown) { finalShown = true; confetti({ particleCount: 200, spread: 70, origin: { y: 0.6 } }); }
         }
+
+        // ---------- Leave / Home ----------
+        window.exitRoom = async () => {
+            if (!confirm("Leave the room? Your score is saved — rejoin anytime with the same code.")) return;
+            try { await set(ref(db, `${base()}/players/${myUid}/online`), false); } catch (e) {}
+            clearSession();
+            location.reload();
+        };
+        window.backToHome = () => { clearSession(); location.reload(); };
+
+        // ---------- Auto-resume after refresh / app closed ----------
+        (async () => {
+            try { const n = localStorage.getItem(NAME_KEY); if (n) $('p-name').value = n; } catch (e) {}
+            const s = loadSession();
+            if (!s || !s.roomID || !s.myName) return;
+            try {
+                await authReady;
+                const host = await get(ref(db, `raja_rani/${s.roomID}/hostUid`));
+                if (!host.exists()) { clearSession(); return; }
+                myName = s.myName; roomID = s.roomID;
+                const ok = await joinRoom();
+                if (!ok) { clearSession(); showScreen('lobby-screen'); }
+            } catch (e) { console.error(e); }
+        })();
     </script>
 </body>
 </html>
